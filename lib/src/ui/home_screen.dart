@@ -71,7 +71,7 @@ class HomeScreen extends StatelessWidget {
                   return Card(
                     child: ListTile(
                       title: Text(c.name, style: const TextStyle(fontWeight: FontWeight.w700)),
-                      subtitle: Text('${c.students.length} students · ${!schoolDay ? 'Not a school day' : r.taken ? (r.waiting ? "Today's register saved, waiting to sync" : "Today's register taken") : "Today's register not taken"}'),
+                      subtitle: Text('${c.students.length} students · ${!schoolDay ? (app.holidayToday != null ? 'Holiday: ${app.holidayToday!.name}' : 'Not a school day') : r.taken ? (r.waiting ? "Today's register saved, waiting to sync" : "Today's register taken") : "Today's register not taken"}'),
                       trailing: Icon(r.taken ? Icons.check_circle : Icons.chevron_right, color: r.taken ? good : null),
                       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => RegisterScreen(classId: c.id))),
                     ),

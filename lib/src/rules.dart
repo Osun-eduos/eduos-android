@@ -15,9 +15,12 @@ String todayNG([DateTime? now]) => isoDate((now ?? DateTime.now()).toUtc().add(c
 
 bool isWeekend(DateTime d) => d.weekday == DateTime.saturday || d.weekday == DateTime.sunday;
 
-/// School days a class teacher can take or correct a register for: weekdays in the session, from
-/// [editDays] days ago up to today. Newest first.
-List<String> registerDates({required String today, required Period session, required int editDays}) {
+/// The holiday on a date, if any.
+Holiday? holidayOn(List<Holiday> holidays, String date) => holidays.where((h) => h.covers(date)).firstOrNull;
+
+/// School days a class teacher can take or correct a register for: weekdays in the session that are not
+/// holidays, from [editDays] days ago up to today. Newest first.
+List<String> registerDates({required String today, required Period session, required int editDays, List<Holiday> holidays = const []}) {
   final t = parseDate(today);
   final start = parseDate(session.startDate);
   final end = parseDate(session.endDate);
@@ -25,7 +28,9 @@ List<String> registerDates({required String today, required Period session, requ
   final out = <String>[];
   for (var d = t; !d.isBefore(from); d = d.subtract(const Duration(days: 1))) {
     if (isWeekend(d) || d.isBefore(start) || d.isAfter(end)) continue;
-    out.add(isoDate(d));
+    final iso = isoDate(d);
+    if (holidayOn(holidays, iso) != null) continue;
+    out.add(iso);
   }
   return out;
 }

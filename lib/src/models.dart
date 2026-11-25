@@ -127,6 +127,16 @@ class Period {
   factory Period.fromJson(Map<String, dynamic> j) => Period(id: j['id'], name: j['name'], startDate: j['startDate'], endDate: j['endDate']);
 }
 
+/// A state-wide holiday or other non-school day set by the Ministry. Registers are not taken on these days.
+class Holiday {
+  Holiday({required this.name, required this.startDate, required this.endDate});
+  final String name;
+  final String startDate;
+  final String endDate;
+  factory Holiday.fromJson(Map<String, dynamic> j) => Holiday(name: j['name'], startDate: j['startDate'], endDate: j['endDate'] ?? j['startDate']);
+  bool covers(String date) => startDate.compareTo(date) <= 0 && endDate.compareTo(date) >= 0;
+}
+
 class Term extends Period {
   Term({required super.id, required super.name, required super.startDate, required super.endDate, required this.components, required this.sssGrading});
   final List<Component> components;
@@ -162,6 +172,7 @@ class Snapshot {
     required this.sssScale,
     required this.teacherEditDays,
     required this.generatedAt,
+    this.holidays = const [],
   });
   final String userName;
   final String? schoolName;
@@ -173,6 +184,7 @@ class Snapshot {
   final List<Band> sssScale;
   final int teacherEditDays;
   final DateTime generatedAt;
+  final List<Holiday> holidays;
 
   factory Snapshot.fromJson(Map<String, dynamic> body) {
     final s = body['snapshot'] as Map<String, dynamic>;
@@ -190,6 +202,7 @@ class Snapshot {
       sssScale: scale('SSS'),
       teacherEditDays: ((body['attendance'] as Map?)?['teacherEditDays'] as num?)?.toInt() ?? 7,
       generatedAt: DateTime.tryParse(s['generatedAt'] ?? '') ?? DateTime.now(),
+      holidays: ((s['holidays'] as List?) ?? []).map((h) => Holiday.fromJson(h)).toList(),
     );
   }
 }

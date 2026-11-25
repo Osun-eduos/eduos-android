@@ -20,6 +20,14 @@ void main() {
     expect(registerDates(today: '2026-11-29', session: snap.session!, editDays: 7).first, '2026-11-27'); // Sunday
   });
 
+  test('holidays are skipped, and stated', () {
+    final days = registerDates(today: '2026-11-25', session: snap.session!, editDays: 7, holidays: snap.holidays);
+    expect(days, ['2026-11-25', '2026-11-24', '2026-11-23', '2026-11-18']);
+    expect(holidayOn(snap.holidays, '2026-11-20')?.name, 'Mid-term break');
+    expect(holidayOn(snap.holidays, '2026-11-21'), isNull);
+    expect(Snapshot.fromJson({'snapshot': {...snapshotBody()['snapshot'] as Map<String, dynamic>}..remove('holidays')}).holidays, isEmpty);
+  });
+
   test('students admitted later are not on earlier rolls', () {
     final students = snap.classes.first.students;
     expect(rollOn(students, '2026-11-24').map((s) => s.id), ['s1', 's2']);

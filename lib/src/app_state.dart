@@ -214,8 +214,11 @@ class AppState extends ChangeNotifier {
   List<String> registerDays() {
     final s = snapshot;
     if (s?.session == null) return [];
-    return registerDates(today: today, session: s!.session!, editDays: s.teacherEditDays);
+    return registerDates(today: today, session: s!.session!, editDays: s.teacherEditDays, holidays: s.holidays);
   }
+
+  /// Today's holiday, if today is one.
+  Holiday? get holidayToday => snapshot == null ? null : holidayOn(snapshot!.holidays, today);
 
   RegisterView registerFor(SchoolClass c, String date) {
     final key = registerKey(c.id, date);

@@ -54,6 +54,9 @@ Map<String, dynamic> snapshotBody({String today = '2026-11-25', String sheetStat
           ],
         },
       ],
+      'holidays': [
+        {'name': 'Mid-term break', 'startDate': '2026-11-19', 'endDate': '2026-11-20'},
+      ],
       'subjects': [
         {
           'classSubjectId': mathsId, 'code': 'MTH', 'name': 'Mathematics', 'classId': classId, 'className': 'JSS 2A', 'level': level,

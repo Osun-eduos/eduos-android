@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.0] - 2026-11-25
+
+### Added
+- Holidays from the snapshot: the register skips them and the home screen names today's holiday.
+
 ## [0.2.0] - 2026-11-25
 
 ### Added
