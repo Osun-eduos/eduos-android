@@ -3,13 +3,12 @@ import 'dart:async';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:path/path.dart' as p;
 import 'package:provider/provider.dart';
-import 'package:sqflite_sqlcipher/sqflite.dart' as cipher;
 
 import 'src/app_state.dart';
 import 'src/net/api.dart';
-import 'src/store/local_store.dart';
+import 'src/store/open.dart';
+import 'src/sync/background.dart';
 import 'src/store/vault.dart';
 import 'src/ui/home_screen.dart';
 import 'src/ui/login_screen.dart';
@@ -21,17 +20,18 @@ import 'src/ui/theme.dart';
 const _apiUrl = String.fromEnvironment('API_URL', defaultValue: 'http://10.0.2.2:3000');
 const _syncUrl = String.fromEnvironment('SYNC_URL', defaultValue: 'http://10.0.2.2:4000');
 
-Future<LocalStore> openEncryptedStore(String key) async {
-  final path = p.join(await cipher.getDatabasesPath(), 'eduos.db');
-  final db = await cipher.openDatabase(path, password: key, version: 1, onCreate: LocalStore.create);
-  return LocalStore(db);
-}
-
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   final vault = SecureVault();
   final servers = Servers(api: _apiUrl, sync: _syncUrl);
-  final state = AppState(vault: vault, api: Api(client: http.Client(), vault: vault, servers: servers), openStore: openEncryptedStore, defaultServers: servers);
+  final state = AppState(
+    vault: vault,
+    api: Api(client: http.Client(), vault: vault, servers: servers),
+    openStore: openEncryptedStore,
+    defaultServers: servers,
+    onSignedIn: scheduleBackgroundSync,
+    onSignedOut: cancelBackgroundSync,
+  );
   runApp(ChangeNotifierProvider.value(value: state, child: const EduosApp()));
   state.init();
 }

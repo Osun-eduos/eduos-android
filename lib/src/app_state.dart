@@ -44,13 +44,16 @@ const statusText = {
 };
 
 class AppState extends ChangeNotifier {
-  AppState({required this.vault, required this.api, required this.openStore, required this.defaultServers, this.clock});
+  AppState({required this.vault, required this.api, required this.openStore, required this.defaultServers, this.clock, this.onSignedIn, this.onSignedOut});
 
   final Vault vault;
   final Api api;
   final Future<LocalStore> Function(String key) openStore;
   final Servers defaultServers;
   final DateTime Function()? clock;
+  /// Starts background sync (set by main; left out in tests).
+  final Future<void> Function(Servers servers)? onSignedIn;
+  final Future<void> Function()? onSignedOut;
   final _uuid = const Uuid();
 
   Phase phase = Phase.loading;
@@ -81,6 +84,7 @@ class AppState extends ChangeNotifier {
       phase = Phase.ready;
       notifyListeners();
       _startTimer();
+      _background();
       unawaited(sync());
     } else {
       phase = Phase.signedOut;
@@ -98,6 +102,12 @@ class AppState extends ChangeNotifier {
     notices = await store.notices();
     lastSync = await store.lastSyncAt();
     notifyListeners();
+  }
+
+  /// Background sync is best effort: if the platform refuses, the app still syncs whenever it is open.
+  void _background() {
+    final f = onSignedIn;
+    if (f != null) unawaited(f(api.servers).catchError((Object e) => debugPrint('Background sync not scheduled: $e')));
   }
 
   void _startTimer() {
@@ -157,12 +167,14 @@ class AppState extends ChangeNotifier {
     }
     phase = Phase.ready;
     _startTimer();
+    _background();
     notifyListeners();
     return null;
   }
 
   Future<void> signOut() async {
     _timer?.cancel();
+    if (onSignedOut != null) await onSignedOut!().catchError((Object _) {});
     await api.logout();
     await store.wipe();
     snapshot = null;

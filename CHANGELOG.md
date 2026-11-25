@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.0] - 2026-11-25
+
+### Added
+- Background sync while the app is closed: Android WorkManager and iOS BGTaskScheduler, about every 30 minutes when online.
+- Release signing from a private upload key (`scripts/create-upload-key.sh`, `android/key.properties`), also in CI through repository secrets.
+- CI builds the APKs for the live servers when the `EDUOS_API_URL` and `EDUOS_SYNC_URL` repository variables are set.
+- iOS project ready for building: background task registration, local networking for development, and `scripts/check-ios.sh`.
+
 ## [0.1.0] - 2026-11-25
 
 ### Added

@@ -47,9 +47,5 @@ app.*.map.json
 # Widget Preview related
 .widget_preview/
 
-# Signing keys and local secrets
-*.keystore
-*.jks
-key.properties
-.env
-/android/build/
+# Local build logs
+ios-build.log

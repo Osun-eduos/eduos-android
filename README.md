@@ -21,7 +21,8 @@ If the server refuses a change (for example, results have already been released)
    - when the app opens or comes back to the foreground;
    - when the phone reconnects;
    - every 10 minutes while the app is open;
-   - when the teacher pulls down or taps sync.
+   - when the teacher pulls down or taps sync;
+   - in the background while the app is closed, about every 30 minutes when the phone is online (Android WorkManager, iOS background refresh). The operating system picks the exact time to save battery.
 4. eduos-sync applies each change **exactly once**, through eduos-api, so the school rules are always checked on the server too. A fresh snapshot then replaces the drafts it confirms.
 
 ## Security
@@ -45,11 +46,24 @@ flutter build apk --release --split-per-abi \
   --dart-define=SYNC_URL=https://sync.example.ng
 ```
 
-Without `--dart-define`, the app points at a development machine as seen from the Android emulator (`10.0.2.2`). The server addresses can also be changed on the sign-in screen under **Server settings**, which is useful for pilots.
+For the hosted pilot the addresses are `https://osun-eduos-api.onrender.com` and `https://osun-eduos-sync.onrender.com` (see the [deployment guide](https://github.com/Osun-eduos/osun-eduos/blob/main/docs/deployment.md)). Without `--dart-define`, the app points at a development machine as seen from the Android emulator (`10.0.2.2`). The server addresses can also be changed on the sign-in screen under **Server settings**, which is useful for pilots.
 
-`--split-per-abi` makes one APK per phone type (about 18 to 22 MB each). Most low-cost phones need `armeabi-v7a` or `arm64-v8a`. For the Play Store, build an app bundle instead (`flutter build appbundle`). The release build is currently signed with the debug key; add a release keystore before publishing.
+`--split-per-abi` makes one APK per phone type (about 18 to 22 MB each). Most low-cost phones need `armeabi-v7a` or `arm64-v8a`. For the Play Store, build an app bundle instead (`flutter build appbundle`).
 
-iOS builds need a Mac with Xcode: `flutter build ios`.
+### Release signing
+
+Android apps must be signed with the same key for every update, so the **upload key** is created once, on a trusted computer, and kept safe. It is never committed.
+
+1. Run `scripts/create-upload-key.sh`. `keytool` asks for a password and a few details. The script saves the key in `~/.eduos-keys/eduos-teacher-upload.jks` and writes `android/key.properties`, which git ignores.
+2. Store the `.jks` file and its password in the Ministry's password manager, and keep a backup. Losing the key means the app can no longer be updated on Google Play without Google's key reset process.
+3. Release builds on that computer are now signed with it. Without `android/key.properties`, release builds fall back to the debug key and must not be published.
+4. To sign CI builds, add two repository secrets in GitHub (*Settings* > *Secrets and variables* > *Actions*):
+   - `ANDROID_UPLOAD_KEYSTORE_BASE64`: the output of `base64 -i ~/.eduos-keys/eduos-teacher-upload.jks`
+   - `ANDROID_UPLOAD_KEY_PASSWORD`: the password
+
+### iOS
+
+iOS builds need a Mac with Xcode, CocoaPods and Flutter. Run `scripts/check-ios.sh` to build without signing. It writes the full output to `ios-build.log`. To install on iPhones, open `ios/Runner.xcworkspace` in Xcode and choose the Ministry's Apple Developer team under *Signing & Capabilities*. Distribute through TestFlight for the pilot.
 
 ## Tests
 
