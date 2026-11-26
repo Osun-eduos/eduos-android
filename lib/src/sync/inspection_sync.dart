@@ -42,6 +42,7 @@ class InspectionSync {
                 'visitedOn': i.visitedOn,
                 'answers': i.answers,
                 if (i.notes != null && i.notes!.trim().isNotEmpty) 'notes': i.notes!.trim(),
+                if (i.actionNeeded != null && i.actionNeeded!.trim().isNotEmpty) 'actionNeeded': i.actionNeeded!.trim(),
               }));
           i
             ..status = 'sent'

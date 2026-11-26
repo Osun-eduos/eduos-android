@@ -46,10 +46,11 @@ const schema = [
 /// Added in database version 2: inspections recorded on this phone and their photos (files in the app's folder).
 /// An inspection is a draft until submitted, then queued until the API has it; photos follow once it is sent.
 const inspectionSchema = [
-  'CREATE TABLE inspections (client_id TEXT PRIMARY KEY, school_id TEXT NOT NULL, school_name TEXT NOT NULL, visited_on TEXT NOT NULL, answers TEXT NOT NULL, notes TEXT, status TEXT NOT NULL, server_id TEXT, overall TEXT, error TEXT, updated_at TEXT NOT NULL)',
+  'CREATE TABLE inspections (client_id TEXT PRIMARY KEY, school_id TEXT NOT NULL, school_name TEXT NOT NULL, visited_on TEXT NOT NULL, answers TEXT NOT NULL, notes TEXT, action_needed TEXT, status TEXT NOT NULL, server_id TEXT, overall TEXT, error TEXT, updated_at TEXT NOT NULL)',
   'CREATE TABLE inspection_photos (client_id TEXT PRIMARY KEY, inspection_id TEXT NOT NULL, section TEXT NOT NULL, caption TEXT, path TEXT NOT NULL, status TEXT NOT NULL, error TEXT, created_at TEXT NOT NULL)',
 ];
-const databaseVersion = 2;
+/// Version 3 adds the inspector's "action needed" to inspections.
+const databaseVersion = 3;
 
 class LocalStore {
   LocalStore(this.db);
@@ -66,6 +67,8 @@ class LocalStore {
       for (final s in inspectionSchema) {
         await db.execute(s);
       }
+    } else if (from < 3) {
+      await db.execute('ALTER TABLE inspections ADD COLUMN action_needed TEXT');
     }
   }
 
@@ -222,6 +225,7 @@ class LocalInspection {
     required this.visitedOn,
     required this.answers,
     this.notes,
+    this.actionNeeded,
     this.status = 'draft',
     this.serverId,
     this.overall,
@@ -234,6 +238,8 @@ class LocalInspection {
   String visitedOn;
   final Map<String, Map<String, Object?>> answers;
   String? notes;
+  /// What the inspector says must be done.
+  String? actionNeeded;
   /// draft, queued (submitted, waiting to send), sent or failed.
   String status;
   String? serverId;
@@ -248,6 +254,7 @@ class LocalInspection {
         'visited_on': visitedOn,
         'answers': jsonEncode(answers),
         'notes': notes,
+        'action_needed': actionNeeded,
         'status': status,
         'server_id': serverId,
         'overall': overall,
@@ -262,6 +269,7 @@ class LocalInspection {
         visitedOn: r['visited_on'] as String,
         answers: (jsonDecode(r['answers'] as String) as Map<String, dynamic>).map((k, v) => MapEntry(k, Map<String, Object?>.from(v as Map))),
         notes: r['notes'] as String?,
+        actionNeeded: r['action_needed'] as String?,
         status: r['status'] as String,
         serverId: r['server_id'] as String?,
         overall: r['overall'] as String?,

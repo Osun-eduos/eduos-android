@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.6.1] - 2026-11-26
+
+### Added
+- "Action needed" on inspections. The local database moves to version 3; inspections already on the phone are kept.
+
 ## [0.6.0] - 2026-11-26
 
 ### Added

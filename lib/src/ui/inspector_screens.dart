@@ -184,6 +184,7 @@ class _InspectionScreenState extends State<InspectionScreen> {
   List<LocalPhoto> _photos = [];
   Timer? _save;
   final _notes = TextEditingController();
+  final _action = TextEditingController();
   final _counts = <String, TextEditingController>{};
 
   @override
@@ -201,6 +202,7 @@ class _InspectionScreenState extends State<InspectionScreen> {
       _i = i;
       _photos = photos;
       _notes.text = i?.notes ?? '';
+      _action.text = i?.actionNeeded ?? '';
     });
   }
 
@@ -209,6 +211,7 @@ class _InspectionScreenState extends State<InspectionScreen> {
     _save?.cancel();
     if (_i != null && _i!.status == 'draft') _app.saveInspection(_i!);
     _notes.dispose();
+    _action.dispose();
     for (final c in _counts.values) {
       c.dispose();
     }
@@ -258,6 +261,7 @@ class _InspectionScreenState extends State<InspectionScreen> {
     final app = _app;
     _save?.cancel();
     _i!.notes = _notes.text;
+    _i!.actionNeeded = _action.text;
     await app.saveInspection(_i!);
     await app.submitInspection(widget.clientId);
     _i!.status = 'queued';
@@ -436,6 +440,20 @@ class _InspectionScreenState extends State<InspectionScreen> {
                   decoration: const InputDecoration(hintText: 'Anything else the Ministry should know'),
                   onChanged: (t) {
                     i.notes = t;
+                    _changed();
+                  },
+                ),
+                const SizedBox(height: 6),
+                Text('Action needed', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+                TextField(
+                  key: const Key('inspection-action'),
+                  controller: _action,
+                  enabled: _editable,
+                  maxLines: 2,
+                  maxLength: 1000,
+                  decoration: const InputDecoration(hintText: 'What must be done, e.g. repair the roof before the rains'),
+                  onChanged: (t) {
+                    i.actionNeeded = t;
                     _changed();
                   },
                 ),

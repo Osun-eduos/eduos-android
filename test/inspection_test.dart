@@ -54,7 +54,7 @@ void main() {
   }
 
   Future<void> queued({String status = 'queued'}) async {
-    await store.saveInspection(LocalInspection(clientId: 'insp-1', schoolId: 'sch-1', schoolName: 'Osogbo Grammar School', visitedOn: '2026-11-25', answers: goodAnswers(), notes: ' Roof leaks ', status: status));
+    await store.saveInspection(LocalInspection(clientId: 'insp-1', schoolId: 'sch-1', schoolName: 'Osogbo Grammar School', visitedOn: '2026-11-25', answers: goodAnswers(), notes: ' Roof leaks ', actionNeeded: 'Repair the roof ', status: status));
     final f = File('${tmp.path}/p1.jpg')..writeAsBytesSync(jpeg);
     await store.savePhoto(LocalPhoto(clientId: 'photo-1', inspectionId: 'insp-1', section: 'classrooms', path: f.path, caption: 'JSS 2 roof'));
   }
@@ -67,7 +67,7 @@ void main() {
     expect(r.applied, 2);
 
     final post = requests.firstWhere((x) => x.url.path == '/inspections' && x.method == 'POST');
-    expect(jsonDecode(post.body), {'clientId': 'insp-1', 'schoolId': 'sch-1', 'visitedOn': '2026-11-25', 'answers': goodAnswers(), 'notes': 'Roof leaks'});
+    expect(jsonDecode(post.body), {'clientId': 'insp-1', 'schoolId': 'sch-1', 'visitedOn': '2026-11-25', 'answers': goodAnswers(), 'notes': 'Roof leaks', 'actionNeeded': 'Repair the roof'});
     expect(post.headers['Authorization'], 'Bearer old');
     final upload = requests.firstWhere((x) => x.url.path.endsWith('/photos'));
     expect(upload.headers['content-type'], startsWith('multipart/form-data'));
@@ -157,5 +157,27 @@ void main() {
     await s.saveInspection(LocalInspection(clientId: 'x', schoolId: 's', schoolName: 'S', visitedOn: '2026-11-25', answers: {}));
     expect((await s.inspections()).single.clientId, 'x');
     await v2.close();
+  });
+
+  test('adds "action needed" to a phone on database version 2, keeping saved inspections', () async {
+    sqfliteFfiInit();
+    final path = '${tmp.path}/v2.db';
+    final v2 = await databaseFactoryFfi.openDatabase(path, options: OpenDatabaseOptions(version: 2, onCreate: (db, _) async {
+      for (final s in schema.where((s) => !inspectionSchema.contains(s))) {
+        await db.execute(s);
+      }
+      await db.execute(inspectionSchema.first.replaceFirst(' action_needed TEXT,', ''));
+      await db.execute(inspectionSchema.last);
+    }));
+    await v2.insert('inspections', {'client_id': 'old', 'school_id': 's', 'school_name': 'S', 'visited_on': '2026-11-20', 'answers': '{}', 'status': 'draft', 'updated_at': '2026-11-20T10:00:00Z'});
+    await v2.close();
+    final v3 = await databaseFactoryFfi.openDatabase(path, options: OpenDatabaseOptions(version: databaseVersion, onCreate: LocalStore.create, onUpgrade: LocalStore.upgrade));
+    final s = LocalStore(v3);
+    final old = (await s.inspections()).single;
+    expect([old.clientId, old.actionNeeded], ['old', null]);
+    old.actionNeeded = 'Repair the roof';
+    await s.saveInspection(old);
+    expect((await s.inspections()).single.actionNeeded, 'Repair the roof');
+    await v3.close();
   });
 }
