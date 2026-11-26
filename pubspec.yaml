@@ -1,7 +1,7 @@
 name: eduos_mobile
 description: Osun EduOS app for parents, teachers and inspectors. Offline registers, scores and school inspections for Android and iOS.
 publish_to: none
-version: 0.5.0+5
+version: 0.6.0+6
 
 environment:
   sdk: ^3.9.0

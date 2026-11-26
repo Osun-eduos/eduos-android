@@ -77,6 +77,18 @@ class ParentHomeScreen extends StatelessWidget {
             if (data.children.isEmpty)
               const Card(child: Padding(padding: EdgeInsets.all(16), child: Text('No children are linked to your account yet. Ask the school to link them.'))),
             for (final c in data.children) _ChildCard(child: c),
+            if (data.notices.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Text('School announcements', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+              for (final n in data.notices.take(5))
+                Card(
+                  child: ListTile(
+                    title: Text(n.title),
+                    subtitle: Text('${n.body}\n${[n.school, DateFormat('d MMM yyyy').format(n.at.toLocal())].whereType<String>().join(' · ')}'),
+                    isThreeLine: true,
+                  ),
+                ),
+            ],
           ],
         ),
       ),
@@ -141,12 +153,12 @@ class ChildScreen extends StatelessWidget {
     if (c == null) return Scaffold(appBar: AppBar(), body: const Center(child: Text('This child is no longer linked to your account.')));
     final t = Theme.of(context).textTheme;
     return DefaultTabController(
-      length: 2,
+      length: 3,
       initialIndex: termId != null ? 1 : 0,
       child: Scaffold(
         appBar: AppBar(
           title: Text(c.firstName),
-          bottom: const TabBar(tabs: [Tab(text: 'Attendance'), Tab(text: 'Report cards')]),
+          bottom: const TabBar(tabs: [Tab(text: 'Attendance'), Tab(text: 'Report cards'), Tab(text: 'Progress')]),
         ),
         body: TabBarView(children: [
           ListView(padding: const EdgeInsets.all(16), children: [
@@ -173,9 +185,45 @@ class ChildScreen extends StatelessWidget {
               ),
           ]),
           _ReportCards(child: c, initialTerm: termId),
+          _Progress(child: c),
         ]),
       ),
     );
+  }
+}
+
+/// Term averages over time and the exam timetable.
+class _Progress extends StatelessWidget {
+  const _Progress({required this.child});
+  final Child child;
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context).textTheme;
+    final p = child.progress;
+    return ListView(padding: const EdgeInsets.all(16), children: [
+      Text('Academic progress', style: t.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+      const SizedBox(height: 6),
+      if (p.isEmpty) const Card(child: Padding(padding: EdgeInsets.all(14), child: Text('Progress appears after the first report card.'))),
+      for (final x in p)
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 5),
+          child: Row(children: [
+            SizedBox(width: 110, child: Text('${x.term.replaceAll(' term', '')} · ${x.className}', style: t.bodySmall)),
+            Expanded(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(value: (x.average ?? 0) / 100, minHeight: 12, color: indigo, backgroundColor: indigo.withValues(alpha: 0.1)),
+              ),
+            ),
+            SizedBox(width: 56, child: Text(x.average == null ? '–' : '${x.average}', textAlign: TextAlign.right, style: t.titleSmall)),
+          ]),
+        ),
+      const SizedBox(height: 16),
+      Text(child.examTerm == null ? 'Exam timetable' : 'Exam timetable · ${child.examTerm}', style: t.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+      if (child.exams.isEmpty) const Card(child: Padding(padding: EdgeInsets.all(14), child: Text('The school has not published an exam timetable yet.'))),
+      for (final e in child.exams)
+        Card(child: ListTile(dense: true, title: Text(e.subject), subtitle: Text('${_day(e.date)} · ${e.startTime} · ${e.minutes} min'))),
+    ]);
   }
 }
 
@@ -273,7 +321,16 @@ class _ReportCardsState extends State<_ReportCards> {
               ]),
             ),
           ),
+        if (c.overallGrade != null || c.promotion != null)
+          Card(
+            child: ListTile(
+              title: Text(c.overallGrade == null ? 'Overall' : 'Overall grade ${c.overallGrade}'),
+              subtitle: c.promotion == null ? null : Text(c.promotion!),
+            ),
+          ),
         if (c.nextTermBegins != null) Padding(padding: const EdgeInsets.all(8), child: Text('Next term begins ${_day(c.nextTermBegins!)}.')),
+        if (c.verificationCode != null)
+          Padding(padding: const EdgeInsets.all(8), child: Text('Verification code ${c.verificationCode}. Anyone can check a printed copy on the EduOS website under "Check a report card".', style: t.bodySmall)),
       ],
     ]);
   }

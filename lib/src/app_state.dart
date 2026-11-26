@@ -514,4 +514,40 @@ class AppState extends ChangeNotifier {
     if (cached != null && cached.termId == termId) return cached;
     return ReportCard.fromJson(await _parents!.reportCard(studentId, termId));
   }
+
+  // ---------- Staff clock-in (teachers and school administrators) ----------
+
+  /// Today's mark: 'PRESENT', 'LATE', 'ABSENT' or 'LEAVE'; 'OUT' if not yet marked; 'none' without a staff
+  /// record; null until checked (or offline).
+  String? clockStatus;
+
+  Future<T> _withRefresh<T>(Future<T> Function() fn) async {
+    try {
+      return await fn();
+    } on ApiException catch (e) {
+      if (e.status != 401 || !await api.refresh()) rethrow;
+      return await fn();
+    }
+  }
+
+  /// Asks the API whether the signed-in member of staff is marked in today. Quietly does nothing offline.
+  Future<void> loadClockStatus() async {
+    try {
+      final r = await _withRefresh(() => api.apiGet('/staff-attendance/me'));
+      clockStatus = r['linked'] != true ? 'none' : (r['today']?['status'] as String? ?? 'OUT');
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  /// Clocks in for today. Returns a message for the person.
+  Future<String> clockIn() async {
+    try {
+      final r = await _withRefresh(() => api.apiPost('/staff-attendance/clock-in', {}));
+      clockStatus = r['status'] as String?;
+      notifyListeners();
+      return clockStatus == 'LATE' ? 'Clocked in, marked late.' : 'Clocked in. Have a good day.';
+    } on ApiException catch (e) {
+      return e.offline ? 'Clocking in needs a connection. Try again when you have signal.' : e.message;
+    }
+  }
 }

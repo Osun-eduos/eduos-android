@@ -33,7 +33,10 @@ class ReportSubject {
 }
 
 class ReportCard {
-  ReportCard({required this.termId, required this.termName, required this.session, required this.className, required this.subjects, required this.average, required this.position, required this.outOf, required this.teacherRemark, required this.principalRemark, required this.attendanceRate, required this.nextTermBegins});
+  ReportCard({required this.termId, required this.termName, required this.session, required this.className, required this.subjects, required this.average, required this.position, required this.outOf, required this.teacherRemark, required this.principalRemark, required this.attendanceRate, required this.nextTermBegins, this.overallGrade, this.promotion, this.verificationCode});
+  final String? overallGrade;
+  final String? promotion;
+  final String? verificationCode;
   final String termId;
   final String termName;
   final String session;
@@ -62,11 +65,49 @@ class ReportCard {
         principalRemark: j['remarks']?['principal'],
         attendanceRate: (j['attendance']?['rate'] as num?)?.toDouble(),
         nextTermBegins: j['nextTermBegins'],
+        overallGrade: j['overallGrade']?['grade'] as String?,
+        promotion: j['promotion'] as String?,
+        verificationCode: j['verificationCode'] as String?,
       );
 }
 
+/// A child's average in one released term, for the progress chart.
+class TermAverage {
+  TermAverage({required this.term, required this.session, required this.className, required this.average, required this.position});
+  final String term;
+  final String session;
+  final String className;
+  final double? average;
+  final String? position;
+  factory TermAverage.fromJson(Map<String, dynamic> j) =>
+      TermAverage(term: j['term'], session: j['session'], className: j['className'], average: (j['average'] as num?)?.toDouble(), position: j['position'] as String?);
+}
+
+/// One paper in the child's exam timetable.
+class ExamPaper {
+  ExamPaper({required this.subject, required this.date, required this.startTime, required this.minutes});
+  final String subject;
+  final String date;
+  final String startTime;
+  final int minutes;
+  factory ExamPaper.fromJson(Map<String, dynamic> j) => ExamPaper(subject: j['subject'], date: j['date'], startTime: j['startTime'], minutes: (j['minutes'] as num).toInt());
+}
+
+/// A notice from a child's school.
+class SchoolNotice {
+  SchoolNotice({required this.title, required this.body, required this.school, required this.at});
+  final String title;
+  final String body;
+  final String? school;
+  final DateTime at;
+  factory SchoolNotice.fromJson(Map<String, dynamic> j) => SchoolNotice(title: j['title'], body: j['body'], school: j['school'], at: DateTime.tryParse(j['createdAt'] ?? '') ?? DateTime.now());
+}
+
 class Child {
-  Child({required this.id, required this.fullName, required this.firstName, required this.relationship, required this.schoolName, required this.className, required this.classTeacher, required this.learnerId, required this.attendance, required this.terms, required this.latestCard});
+  Child({required this.id, required this.fullName, required this.firstName, required this.relationship, required this.schoolName, required this.className, required this.classTeacher, required this.learnerId, required this.attendance, required this.terms, required this.latestCard, this.progress = const [], this.exams = const [], this.examTerm});
+  final List<TermAverage> progress;
+  final List<ExamPaper> exams;
+  final String? examTerm;
   final String id;
   final String fullName;
   final String firstName;
@@ -92,6 +133,9 @@ class Child {
         attendance: ChildAttendance.fromJson(j['attendance'] as Map<String, dynamic>?),
         terms: ((j['terms'] as List?) ?? []).where((t) => t['released'] == true).map((t) => (t['termId'] as String, '${t['name']}, ${t['session']}')).toList(),
         latestCard: j['latestCard'] == null ? null : ReportCard.fromJson(j['latestCard']),
+        progress: ((j['progress'] as List?) ?? []).map((p) => TermAverage.fromJson(p)).toList(),
+        exams: ((j['exams']?['papers'] as List?) ?? []).map((p) => ExamPaper.fromJson(p)).toList(),
+        examTerm: j['exams']?['term']?['name'] as String?,
       );
 }
 
@@ -112,7 +156,8 @@ class InboxItem {
 }
 
 class ParentData {
-  ParentData({required this.userName, required this.children, required this.inbox});
+  ParentData({required this.userName, required this.children, required this.inbox, this.notices = const []});
+  final List<SchoolNotice> notices;
   final String userName;
   final List<Child> children;
   final List<InboxItem> inbox;
@@ -124,6 +169,7 @@ class ParentData {
           final i = InboxItem.fromJson(n);
           return readHere.contains(i.id) ? InboxItem(id: i.id, kind: i.kind, title: i.title, body: i.body, link: i.link, read: true, at: i.at) : i;
         }).toList(),
+        notices: ((j['notices'] as List?) ?? []).map((n) => SchoolNotice.fromJson(n)).toList(),
       );
   int get unread => inbox.where((n) => !n.read).length;
 }

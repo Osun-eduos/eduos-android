@@ -25,6 +25,16 @@ class ParentSync {
     }
   }
 
+  /// Extras (progress, exam timetable, school notices) that an older server may not have: a 404 is not a failure.
+  Future<Map<String, dynamic>?> _optional(String path) async {
+    try {
+      return await _authed(() => api.apiGet(path));
+    } on ApiException catch (e) {
+      if (e.status == 404) return null;
+      rethrow;
+    }
+  }
+
   /// Notifications read on this phone while offline, waiting to be told to the server.
   static Future<Set<String>> pendingReads(LocalStore s) async => ((jsonDecode(await s.meta('pendingRead') ?? '[]') as List).cast<String>()).toSet();
 
@@ -47,10 +57,13 @@ class ParentSync {
         final released = terms.where((t) => t['released'] == true).toList();
         Map<String, dynamic>? card;
         if (released.isNotEmpty) card = await _authed(() => api.apiGet('/report-cards/$id?termId=${released.first['termId']}'));
-        children.add({...k, 'attendance': attendance, 'terms': terms, 'latestCard': card});
+        final progress = (await _optional('/report-cards/$id/progress'))?['items'] ?? [];
+        final exams = await _optional('/exam-papers/student/$id');
+        children.add({...k, 'attendance': attendance, 'terms': terms, 'latestCard': card, 'progress': progress, 'exams': exams});
       }
       final inbox = await _authed(() => api.apiGet('/notifications'));
-      await store.setMeta('parent', jsonEncode({'userName': userName, 'children': children, 'inbox': inbox['items'] ?? []}));
+      final notices = (await _optional('/notices/mine'))?['items'] ?? [];
+      await store.setMeta('parent', jsonEncode({'userName': userName, 'children': children, 'inbox': inbox['items'] ?? [], 'notices': notices}));
       await store.setMeta('lastSyncAt', DateTime.now().toUtc().toIso8601String());
       return SyncReport(SyncOutcome.synced, applied: reads.length);
     } on _SignedOut {

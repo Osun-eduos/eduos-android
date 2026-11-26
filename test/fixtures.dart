@@ -133,7 +133,23 @@ Map<String, Object> parentApi() => {
         'remarks': {'teacher': 'A hard-working pupil.', 'principal': null},
         'attendance': {'rate': 95},
         'nextTermBegins': '2027-01-05',
+        'overallGrade': {'grade': 'A', 'remark': 'Excellent'},
+        'promotion': null,
+        'verificationCode': 'OSE-7K2Q-M4XP',
       },
+      '/report-cards/$childId/progress': [
+        {'termId': termId, 'term': 'First term', 'session': '2026/2027', 'className': 'JSS 1A', 'average': 71, 'position': '3rd of 38'},
+      ],
+      '/exam-papers/student/$childId': {
+        'term': {'name': 'First term'},
+        'className': 'JSS 1A',
+        'papers': [
+          {'subjectCode': 'MTH', 'subject': 'Mathematics', 'date': '2026-12-07', 'startTime': '09:00', 'minutes': 120},
+        ],
+      },
+      '/notices/mine': [
+        {'id': 'x-1', 'title': 'PTA meeting', 'body': 'Saturday at 10 am in the school hall.', 'school': 'Osogbo Grammar School', 'createdAt': '2026-11-24T10:00:00Z'},
+      ],
       '/notifications': {
         'unread': 2,
         'items': [

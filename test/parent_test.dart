@@ -125,6 +125,8 @@ void main() {
         ],
         ['Toluwani', 'JSS 1A', 95.0, 1, 71.0, '3rd'],
       );
+      expect([c.progress.single.average, c.exams.single.subject, c.examTerm, data.notices.single.title, c.latestCard?.overallGrade, c.latestCard?.verificationCode],
+          [71.0, 'Mathematics', 'First term', 'PTA meeting', 'A', 'OSE-7K2Q-M4XP']);
       expect(
         c.attendance.records.first.date,
         '2026-11-25',

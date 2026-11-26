@@ -52,6 +52,7 @@ class HomeScreen extends StatelessWidget {
             Text([s.schoolName, s.term?.name ?? s.session?.name].whereType<String>().join(' · '), style: Theme.of(context).textTheme.bodyMedium),
             const SizedBox(height: 12),
             const SyncCard(),
+            const _ClockInCard(),
             for (final n in app.notices)
               Card(
                 color: bad.withValues(alpha: 0.06),
@@ -140,4 +141,53 @@ class _Empty extends StatelessWidget {
   final String text;
   @override
   Widget build(BuildContext context) => Card(child: Padding(padding: const EdgeInsets.all(16), child: Text(text)));
+}
+
+/// Clock in for the day. Shown once the API confirms the account has a staff record.
+class _ClockInCard extends StatefulWidget {
+  const _ClockInCard();
+  @override
+  State<_ClockInCard> createState() => _ClockInCardState();
+}
+
+class _ClockInCardState extends State<_ClockInCard> {
+  bool _busy = false;
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.read<AppState>().loadClockStatus();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final app = context.watch<AppState>();
+    final st = app.clockStatus;
+    // Hidden until the API confirms a staff record (and while offline).
+    if (st == null || st == 'none') return const SizedBox.shrink();
+    final done = st != 'OUT';
+    return Card(
+      child: ListTile(
+        leading: Icon(done ? Icons.how_to_reg : Icons.login, color: done ? good : indigo),
+        title: Text(done ? 'Marked ${st == 'LATE' ? 'late' : st == 'PRESENT' ? 'present' : st == 'LEAVE' ? 'on leave' : 'absent'} today' : 'Clock in for today'),
+        trailing: done
+            ? null
+            : FilledButton(
+                key: const Key('clock-in'),
+                onPressed: _busy
+                    ? null
+                    : () async {
+                        final messenger = ScaffoldMessenger.of(context);
+                        setState(() => _busy = true);
+                        final msg = await app.clockIn();
+                        if (!mounted) return;
+                        setState(() => _busy = false);
+                        messenger.showSnackBar(SnackBar(content: Text(msg)));
+                      },
+                child: const Text('Clock in'),
+              ),
+      ),
+    );
+  }
 }

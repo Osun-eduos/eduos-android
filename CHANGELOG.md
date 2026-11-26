@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.0] - 2026-11-26
+
+### Added
+- Parents: a Progress tab with term averages over time and the exam timetable, school announcements on the home screen, and the overall grade, promotion and verification code on report cards.
+- Teachers and school administrators can clock in for the day from the home screen.
+
 ## [0.5.0] - 2026-11-26
 
 ### Added
