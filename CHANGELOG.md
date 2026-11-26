@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.4.0] - 2026-11-26
+
+### Added
+- Inspector mode for school inspectors and LGA education officers: their schools, the inspection checklist with photos and notes, drafts that survive the app closing, and offline queuing with uploads that are safe to retry. Background sync sends waiting inspections too.
+- Camera and photo library permission texts for iOS.
+
+### Changed
+- The local database is upgraded to version 2 (new inspection tables); existing data is kept.
+
 ## [0.3.0] - 2026-11-25
 
 ### Added

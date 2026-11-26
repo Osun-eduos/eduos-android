@@ -1,6 +1,6 @@
 # eduos-mobile
 
-**Osun EduOS teacher app for Android and iOS, built with Flutter.**
+**Osun EduOS app for teachers, inspectors and LGA education officers, on Android and iOS, built with Flutter.**
 
 Part of [Osun EduOS](https://github.com/Osun-eduos/osun-eduos), the open-source education management and intelligence system for Osun State. The app syncs through [eduos-sync](https://github.com/Osun-eduos/eduos-sync), and teachers sign in with the same account they use on the [EduOS website](https://github.com/Osun-eduos/eduos-web).
 
@@ -12,6 +12,13 @@ Part of [Osun EduOS](https://github.com/Osun-eduos/osun-eduos), the open-source 
 - **Work without internet.** Everything is saved on the phone first and sent automatically when a connection returns. The home screen always shows what is still waiting to be sent.
 
 If the server refuses a change (for example, results have already been released), the teacher sees a plain message saying what was refused and why.
+
+## What inspectors and LGA officers can do
+
+- **Record a school visit** from a list of the schools in their area: classrooms, toilets, water, power, safety and other facilities, with notes. The checklist comes from the server, so the Ministry can change it without a new app.
+- **Take photos** for each section (or pick them from the gallery). They are resized on the phone and kept in the app's folder until sent, then deleted from the phone.
+- **Work without internet.** Drafts save as they answer. A submitted visit and its photos are sent when there is a connection, the visit first and then each photo, straight to eduos-api. Each has an id made on the phone, so a dropped connection never saves anything twice.
+- See their recent visits with the grade the server gave each one.
 
 ## How it works offline
 

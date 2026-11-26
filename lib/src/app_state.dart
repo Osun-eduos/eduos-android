@@ -1,15 +1,19 @@
 // Everything the screens show, and every action a teacher can take.
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
 
+import 'inspection.dart';
 import 'models.dart';
 import 'net/api.dart';
 import 'rules.dart';
 import 'store/local_store.dart';
 import 'store/vault.dart';
+import 'sync/inspection_sync.dart';
 import 'sync/sync_engine.dart';
 
 enum Phase { loading, signedOut, changePassword, ready }
@@ -44,7 +48,7 @@ const statusText = {
 };
 
 class AppState extends ChangeNotifier {
-  AppState({required this.vault, required this.api, required this.openStore, required this.defaultServers, this.clock, this.onSignedIn, this.onSignedOut});
+  AppState({required this.vault, required this.api, required this.openStore, required this.defaultServers, this.clock, this.onSignedIn, this.onSignedOut, this.photosDir});
 
   final Vault vault;
   final Api api;
@@ -54,12 +58,20 @@ class AppState extends ChangeNotifier {
   /// Starts background sync (set by main; left out in tests).
   final Future<void> Function(Servers servers)? onSignedIn;
   final Future<void> Function()? onSignedOut;
+  /// Folder for inspection photos waiting to be sent (set by main; tests use a temporary folder).
+  final Future<Directory> Function()? photosDir;
   final _uuid = const Uuid();
 
   Phase phase = Phase.loading;
   LocalStore? _store;
   SyncEngine? _engine;
+  InspectionSync? _inspections;
   Snapshot? snapshot;
+  /// TEACHER, INSPECTOR or LGA_OFFICER. Phones set up before inspections existed are teachers.
+  String role = 'TEACHER';
+  String? lga;
+  InspectorData? inspector;
+  List<LocalInspection> localInspections = [];
   Map<String, Draft> drafts = {};
   Set<String> waitingKeys = {};
   int pending = 0;
@@ -73,14 +85,25 @@ class AppState extends ChangeNotifier {
 
   LocalStore get store => _store!;
   String get today => todayNG(clock?.call());
+  bool get isInspector => inspectorRoles.contains(role);
+  bool get _hasWorkSet => isInspector ? inspector != null : snapshot != null;
+
+  void _engines() {
+    _inspections = InspectionSync(api: api, store: store, userName: userName ?? '', lga: lga);
+  }
+
+  Future<SyncReport> _runSync() => isInspector ? _inspections!.run() : _engine!.run();
 
   Future<void> init() async {
     final apiUrl = await vault.read('apiUrl'), syncUrl = await vault.read('syncUrl');
     api.servers = Servers(api: apiUrl ?? defaultServers.api, sync: syncUrl ?? defaultServers.sync);
     _store = await openStore(await databaseKey(vault));
     _engine = SyncEngine(api: api, store: store, deviceId: await deviceId(vault));
+    role = await vault.read('role') ?? 'TEACHER';
+    lga = await vault.read('lga');
     await reload();
-    if (await vault.read('refreshToken') != null && snapshot != null) {
+    _engines();
+    if (await vault.read('refreshToken') != null && _hasWorkSet) {
       phase = Phase.ready;
       notifyListeners();
       _startTimer();
@@ -95,10 +118,13 @@ class AppState extends ChangeNotifier {
   Future<void> reload() async {
     final json = await store.snapshotJson();
     snapshot = json == null ? null : Snapshot.fromJson(json);
-    userName = snapshot?.userName ?? userName;
+    final insp = await store.meta('inspector');
+    inspector = insp == null ? null : InspectorData.fromJson(jsonDecode(insp) as Map<String, dynamic>);
+    userName = snapshot?.userName ?? (inspector?.userName.isNotEmpty == true ? inspector!.userName : null) ?? userName;
     drafts = {for (final d in await store.drafts()) d.key: d};
     waitingKeys = await store.pendingDraftKeys();
-    pending = await store.pendingCount();
+    localInspections = await store.inspections();
+    pending = await store.pendingCount() + await store.inspectionsWaiting();
     notices = await store.notices();
     lastSync = await store.lastSyncAt();
     notifyListeners();
@@ -134,11 +160,22 @@ class AppState extends ChangeNotifier {
   Future<String?> signIn(String identifier, String password) async {
     try {
       final u = await api.login(identifier, password);
-      if (u.role != 'TEACHER') {
+      if (u.role != 'TEACHER' && !inspectorRoles.contains(u.role)) {
         await api.logout();
-        return 'This app is for teachers. Use the EduOS website for other accounts.';
+        return 'This app is for teachers, inspectors and LGA education officers. Use the EduOS website for other accounts.';
+      }
+      // Someone else used this phone before: start clean so their data is never mixed with this person's.
+      if (role != u.role || (snapshot == null && inspector == null)) await store.wipe();
+      role = u.role;
+      lga = u.lga;
+      await vault.write('role', role);
+      if (lga != null) {
+        await vault.write('lga', lga!);
+      } else {
+        await vault.delete('lga');
       }
       userName = u.fullName;
+      _engines();
       if (u.mustChangePassword) {
         phase = Phase.changePassword;
         notifyListeners();
@@ -160,10 +197,10 @@ class AppState extends ChangeNotifier {
   }
 
   Future<String?> _firstSync() async {
-    final r = await _engine!.run();
+    final r = await _runSync();
     await reload();
-    if (r.outcome != SyncOutcome.synced || snapshot == null) {
-      return r.message ?? 'Could not download your classes. Check your connection and try again.';
+    if (r.outcome != SyncOutcome.synced || !_hasWorkSet) {
+      return r.message ?? (isInspector ? 'Could not download your schools. Check your connection and try again.' : 'Could not download your classes. Check your connection and try again.');
     }
     phase = Phase.ready;
     _startTimer();
@@ -177,7 +214,17 @@ class AppState extends ChangeNotifier {
     if (onSignedOut != null) await onSignedOut!().catchError((Object _) {});
     await api.logout();
     await store.wipe();
+    await vault.delete('role');
+    await vault.delete('lga');
+    if (photosDir != null) {
+      try {
+        final d = await photosDir!();
+        if (await d.exists()) await d.delete(recursive: true);
+      } catch (_) {}
+    }
     snapshot = null;
+    inspector = null;
+    role = 'TEACHER';
     await reload();
     phase = Phase.signedOut;
     notifyListeners();
@@ -189,7 +236,7 @@ class AppState extends ChangeNotifier {
     if (phase != Phase.ready || _engine == null) return;
     syncing = true;
     notifyListeners();
-    final r = await _engine!.run();
+    final r = await _runSync();
     syncing = false;
     offline = r.outcome == SyncOutcome.offline;
     syncMessage = r.outcome == SyncOutcome.synced ? null : r.message;
@@ -332,5 +379,74 @@ class AppState extends ChangeNotifier {
     );
     await reload();
     unawaited(sync());
+  }
+
+  // ---- Inspections (inspectors and LGA officers) ----
+
+  LocalInspection? localInspection(String clientId) => localInspections.where((i) => i.clientId == clientId).firstOrNull;
+
+  /// Starts a new inspection of [school] dated today, saved on the phone as a draft.
+  Future<String> startInspection(SchoolRef school) async {
+    final i = LocalInspection(clientId: 'insp-${_uuid.v4()}', schoolId: school.id, schoolName: school.name, visitedOn: today, answers: {});
+    await store.saveInspection(i);
+    await reload();
+    return i.clientId;
+  }
+
+  /// Saves changes to a draft. Called as the inspector answers, so nothing is lost if the phone dies.
+  Future<void> saveInspection(LocalInspection i) async {
+    if (i.status != 'draft') return;
+    // Never turn a submitted inspection back into a draft (a screen closing late may still hold the old copy).
+    final stored = await store.inspection(i.clientId);
+    if (stored == null || stored.status != 'draft') return;
+    i.updatedAt = DateTime.now();
+    await store.saveInspection(i);
+    await reload();
+  }
+
+  Future<void> deleteInspection(String clientId) async {
+    for (final p in await store.photos(inspectionId: clientId)) {
+      try {
+        await File(p.path).delete();
+      } catch (_) {}
+    }
+    await store.deleteInspection(clientId);
+    await reload();
+  }
+
+  /// Submits a finished inspection: it is queued and sent as soon as there is a connection.
+  Future<void> submitInspection(String clientId) async {
+    final i = await store.inspection(clientId);
+    if (i == null || i.status != 'draft') return;
+    i
+      ..status = 'queued'
+      ..updatedAt = DateTime.now();
+    await store.saveInspection(i);
+    await reload();
+    unawaited(sync());
+  }
+
+  Future<List<LocalPhoto>> photosFor(String inspectionClientId) => store.photos(inspectionId: inspectionClientId);
+
+  /// Keeps a copy of a photo just taken (the camera's own copy may be cleared by the system) and queues it.
+  Future<void> addPhoto(String inspectionClientId, String section, String sourcePath, {String? caption}) async {
+    final dir = photosDir == null ? Directory.systemTemp : await photosDir!();
+    if (!await dir.exists()) await dir.create(recursive: true);
+    final id = 'photo-${_uuid.v4()}';
+    final ext = sourcePath.toLowerCase().endsWith('.png') ? 'png' : 'jpg';
+    final copy = await File(sourcePath).copy('${dir.path}/$id.$ext');
+    await store.savePhoto(LocalPhoto(clientId: id, inspectionId: inspectionClientId, section: section, path: copy.path, caption: caption));
+    await reload();
+    final i = await store.inspection(inspectionClientId);
+    if (i != null && i.status != 'draft') unawaited(sync());
+  }
+
+  Future<void> removePhoto(LocalPhoto p) async {
+    if (p.status == 'sent') return;
+    try {
+      await File(p.path).delete();
+    } catch (_) {}
+    await store.deletePhoto(p.clientId);
+    await reload();
   }
 }

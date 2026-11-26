@@ -76,3 +76,27 @@ Future<LocalStore> memoryStore() async {
       options: OpenDatabaseOptions(version: 1, onCreate: LocalStore.create, singleInstance: false));
   return LocalStore(db);
 }
+
+/// What an inspector's phone keeps after a sync: two schools in Osogbo, the checklist and one earlier visit.
+Map<String, dynamic> inspectorMeta(Map<String, dynamic> template) => {
+      'schools': [
+        {'id': 'sch-1', 'name': 'Osogbo Grammar School', 'code': 'OS/OSG/COM/0001', 'lga': 'Osogbo'},
+        {'id': 'sch-2', 'name': 'Baptist High School', 'code': 'OS/OSG/COM/0002', 'lga': 'Osogbo'},
+      ],
+      'template': template,
+      'recent': [
+        {'id': 'srv-0', 'clientId': 'old', 'school': {'name': 'Baptist High School'}, 'visitedOn': '2026-11-10', 'overall': 'FAIR', 'issues': [{'text': 'No first aid box'}], 'photoCount': 2},
+      ],
+      'userName': 'Kola Adeyemi',
+      'lga': 'Osogbo',
+    };
+
+/// Every checklist question answered for a school in good condition.
+Map<String, Map<String, Object?>> goodAnswers() => {
+      'classrooms': {'total': 12, 'usable': 12, 'condition': 'GOOD', 'roofLeaks': false, 'enoughSeats': true, 'boards': 'GOOD'},
+      'toilets': {'girls': 4, 'boys': 4, 'staff': 2, 'working': 10, 'condition': 'GOOD', 'handwashing': true},
+      'water': {'source': 'BOREHOLE', 'working': true, 'safe': true},
+      'power': {'source': 'SOLAR', 'working': true},
+      'safety': {'fence': 'FULL', 'gate': true, 'firstAid': true, 'fireExtinguisher': true, 'hazards': false},
+      'facilities': {'library': true, 'laboratory': false, 'ict': false, 'playground': true},
+    };

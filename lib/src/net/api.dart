@@ -25,10 +25,12 @@ class Servers {
 
 /// Signed-in user as returned by eduos-api.
 class SignedIn {
-  SignedIn({required this.fullName, required this.role, required this.mustChangePassword});
+  SignedIn({required this.fullName, required this.role, required this.mustChangePassword, this.lga});
   final String fullName;
   final String role;
   final bool mustChangePassword;
+  /// The LGA an LGA officer or inspector covers; null for state-wide.
+  final String? lga;
 }
 
 class Api {
@@ -44,6 +46,10 @@ class Api {
     final req = http.Request(method, url)
       ..headers.addAll({'Content-Type': 'application/json', 'Accept': 'application/json', ...?headers});
     if (body != null) req.body = jsonEncode(body);
+    return _sendRequest(req);
+  }
+
+  Future<Map<String, dynamic>> _sendRequest(http.BaseRequest req, {Duration timeout = timeout}) async {
     http.Response res;
     try {
       res = await http.Response.fromStream(await client.send(req).timeout(timeout)).timeout(timeout);
@@ -61,6 +67,7 @@ class Api {
       try {
         final d = jsonDecode(res.body);
         if (d is Map<String, dynamic>) json = d;
+        if (d is List) json = {'items': d};
       } catch (_) {}
     }
     if (res.statusCode >= 400) {
@@ -85,7 +92,7 @@ class Api {
 
   SignedIn _user(Map<String, dynamic> r) {
     final u = r['user'] as Map<String, dynamic>;
-    return SignedIn(fullName: u['fullName'], role: u['role'], mustChangePassword: u['mustChangePassword'] == true);
+    return SignedIn(fullName: u['fullName'], role: u['role'], mustChangePassword: u['mustChangePassword'] == true, lga: u['lga'] as String?);
   }
 
   Future<SignedIn> login(String identifier, String password) async {
@@ -133,5 +140,24 @@ class Api {
     final r = await _send('POST', Uri.parse('${servers.sync}/v1/sync'),
         headers: {'Authorization': 'Bearer ${await accessToken}', 'X-Device-Id': device}, body: {'events': events});
     return (r['results'] as List).cast<Map<String, dynamic>>();
+  }
+
+  // ---- Calls straight to eduos-api (inspectors) ----
+
+  Future<Map<String, String>> _auth() async => {'Authorization': 'Bearer ${await accessToken}'};
+
+  /// GET from eduos-api. A list response comes back as {'items': [...]}.
+  Future<Map<String, dynamic>> apiGet(String path) async => _send('GET', Uri.parse('${servers.api}$path'), headers: await _auth());
+
+  Future<Map<String, dynamic>> apiPost(String path, Object body) async => _send('POST', Uri.parse('${servers.api}$path'), headers: await _auth(), body: body);
+
+  /// Uploads a photo file as multipart form data with the given fields.
+  Future<Map<String, dynamic>> apiUpload(String path, File file, Map<String, String> fields) async {
+    final req = http.MultipartRequest('POST', Uri.parse('${servers.api}$path'))
+      ..headers.addAll({'Accept': 'application/json', ...await _auth()})
+      ..fields.addAll(fields)
+      ..files.add(http.MultipartFile.fromBytes('photo', await file.readAsBytes(), filename: file.uri.pathSegments.last));
+    // Photos are larger than other requests, so allow longer on a slow connection.
+    return _sendRequest(req, timeout: const Duration(seconds: 120));
   }
 }

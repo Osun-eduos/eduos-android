@@ -1,5 +1,7 @@
 // Sync while the app is closed: Android WorkManager and iOS BGTaskScheduler run this about every 30 minutes
 // when the phone has a connection (the operating system decides the exact time to save battery).
+import 'dart:convert';
+
 import 'package:flutter/widgets.dart';
 import 'package:http/http.dart' as http;
 import 'package:workmanager/workmanager.dart';
@@ -8,6 +10,8 @@ import '../net/api.dart';
 import '../store/local_store.dart';
 import '../store/open.dart';
 import '../store/vault.dart';
+import '../inspection.dart';
+import 'inspection_sync.dart';
 import 'sync_engine.dart';
 
 /// Must match BGTaskSchedulerPermittedIdentifiers in ios/Runner/Info.plist and AppDelegate.swift.
@@ -38,7 +42,13 @@ Future<SyncReport?> backgroundSync(
   final store = await openStore(await databaseKey(vault));
   final http_ = client ?? http.Client();
   try {
-    final engine = SyncEngine(api: Api(client: http_, vault: vault, servers: Servers(api: apiUrl, sync: syncUrl)), store: store, deviceId: await deviceId(vault));
+    final api = Api(client: http_, vault: vault, servers: Servers(api: apiUrl, sync: syncUrl));
+    final role = await vault.read('role');
+    if (inspectorRoles.contains(role)) {
+      final name = (jsonDecode(await store.meta('inspector') ?? '{}') as Map<String, dynamic>)['userName'] as String? ?? '';
+      return await InspectionSync(api: api, store: store, userName: name, lga: await vault.read('lga')).run();
+    }
+    final engine = SyncEngine(api: api, store: store, deviceId: await deviceId(vault));
     return await engine.run();
   } finally {
     if (client == null) http_.close();

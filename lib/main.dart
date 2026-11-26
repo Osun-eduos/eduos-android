@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 
 import 'src/app_state.dart';
@@ -11,6 +13,7 @@ import 'src/store/open.dart';
 import 'src/sync/background.dart';
 import 'src/store/vault.dart';
 import 'src/ui/home_screen.dart';
+import 'src/ui/inspector_screens.dart';
 import 'src/ui/login_screen.dart';
 import 'src/ui/theme.dart';
 
@@ -31,6 +34,7 @@ void main() {
     defaultServers: servers,
     onSignedIn: scheduleBackgroundSync,
     onSignedOut: cancelBackgroundSync,
+    photosDir: () async => Directory('${(await getApplicationDocumentsDirectory()).path}/inspection_photos'),
   );
   runApp(ChangeNotifierProvider.value(value: state, child: const EduosApp()));
   state.init();
@@ -71,7 +75,7 @@ class _EduosAppState extends State<EduosApp> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     final phase = context.select<AppState, Phase>((a) => a.phase);
     return MaterialApp(
-      title: 'EduOS Teacher',
+      title: 'EduOS',
       debugShowCheckedModeBanner: false,
       theme: eduosTheme(Brightness.light),
       darkTheme: eduosTheme(Brightness.dark),
@@ -79,7 +83,7 @@ class _EduosAppState extends State<EduosApp> with WidgetsBindingObserver {
         Phase.loading => const Scaffold(body: Center(child: CircularProgressIndicator())),
         Phase.signedOut => const LoginScreen(),
         Phase.changePassword => const ChangePasswordScreen(),
-        Phase.ready => const HomeScreen(),
+        Phase.ready => context.read<AppState>().isInspector ? const InspectorHomeScreen() : const HomeScreen(),
       },
     );
   }

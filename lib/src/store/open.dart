@@ -6,6 +6,6 @@ import 'local_store.dart';
 /// Opens the phone's encrypted database with the key from the Keystore / Keychain.
 Future<LocalStore> openEncryptedStore(String key) async {
   final path = p.join(await cipher.getDatabasesPath(), 'eduos.db');
-  final db = await cipher.openDatabase(path, password: key, version: 1, onCreate: LocalStore.create);
+  final db = await cipher.openDatabase(path, password: key, version: databaseVersion, onCreate: LocalStore.create, onUpgrade: LocalStore.upgrade);
   return LocalStore(db);
 }
