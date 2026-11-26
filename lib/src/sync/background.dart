@@ -12,6 +12,7 @@ import '../store/open.dart';
 import '../store/vault.dart';
 import '../inspection.dart';
 import 'inspection_sync.dart';
+import 'parent_sync.dart';
 import 'sync_engine.dart';
 
 /// Must match BGTaskSchedulerPermittedIdentifiers in ios/Runner/Info.plist and AppDelegate.swift.
@@ -47,6 +48,10 @@ Future<SyncReport?> backgroundSync(
     if (inspectorRoles.contains(role)) {
       final name = (jsonDecode(await store.meta('inspector') ?? '{}') as Map<String, dynamic>)['userName'] as String? ?? '';
       return await InspectionSync(api: api, store: store, userName: name, lga: await vault.read('lga')).run();
+    }
+    if (role == 'PARENT') {
+      final name = (jsonDecode(await store.meta('parent') ?? '{}') as Map<String, dynamic>)['userName'] as String? ?? '';
+      return await ParentSync(api: api, store: store, userName: name).run();
     }
     final engine = SyncEngine(api: api, store: store, deviceId: await deviceId(vault));
     return await engine.run();

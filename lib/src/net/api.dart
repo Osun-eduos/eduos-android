@@ -151,6 +151,8 @@ class Api {
 
   Future<Map<String, dynamic>> apiPost(String path, Object body) async => _send('POST', Uri.parse('${servers.api}$path'), headers: await _auth(), body: body);
 
+  Future<Map<String, dynamic>> apiDelete(String path) async => _send('DELETE', Uri.parse('${servers.api}$path'), headers: await _auth());
+
   /// Uploads a photo file as multipart form data with the given fields.
   Future<Map<String, dynamic>> apiUpload(String path, File file, Map<String, String> fields) async {
     final req = http.MultipartRequest('POST', Uri.parse('${servers.api}$path'))

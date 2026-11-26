@@ -49,11 +49,16 @@ jobs:
         run: |
           echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/upload.jks"
           printf 'storeFile=%s\nstorePassword=%s\nkeyAlias=eduos-upload\nkeyPassword=%s\n' "$RUNNER_TEMP/upload.jks" "$KEY_PASSWORD" "$KEY_PASSWORD" > android/key.properties
-      # Server addresses come from repository variables EDUOS_API_URL and EDUOS_SYNC_URL when set.
+      # Server addresses come from repository variables EDUOS_API_URL and EDUOS_SYNC_URL when set. Push notifications
+      # for parents switch on when the FIREBASE_* variables are set (Firebase app settings; not secret).
       - run: >-
           flutter build apk --release --split-per-abi
           ${{ vars.EDUOS_API_URL && format('--dart-define=API_URL={0}', vars.EDUOS_API_URL) || '' }}
           ${{ vars.EDUOS_SYNC_URL && format('--dart-define=SYNC_URL={0}', vars.EDUOS_SYNC_URL) || '' }}
+          ${{ vars.FIREBASE_API_KEY && format('--dart-define=FIREBASE_API_KEY={0}', vars.FIREBASE_API_KEY) || '' }}
+          ${{ vars.FIREBASE_PROJECT_ID && format('--dart-define=FIREBASE_PROJECT_ID={0}', vars.FIREBASE_PROJECT_ID) || '' }}
+          ${{ vars.FIREBASE_SENDER_ID && format('--dart-define=FIREBASE_SENDER_ID={0}', vars.FIREBASE_SENDER_ID) || '' }}
+          ${{ vars.FIREBASE_ANDROID_APP_ID && format('--dart-define=FIREBASE_ANDROID_APP_ID={0}', vars.FIREBASE_ANDROID_APP_ID) || '' }}
       - run: rm -f android/key.properties
         if: always()
       - uses: actions/upload-artifact@v7

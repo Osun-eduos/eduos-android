@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0] - 2026-11-26
+
+### Added
+- Parent mode: each child's attendance and report cards, the notification inbox with an unread badge, offline copies, and read marks sent when back online. Background sync refreshes parents' data too.
+- Push notifications through Firebase Cloud Messaging, switched on by build settings (`FIREBASE_*`); the phone registers with the API and stops receiving pushes when the parent signs out.
+- CI passes the Firebase settings to release builds when the repository variables are set.
+
 ## [0.4.0] - 2026-11-26
 
 ### Added

@@ -9,11 +9,14 @@ import 'package:uuid/uuid.dart';
 
 import 'inspection.dart';
 import 'models.dart';
+import 'parent.dart';
+import 'push.dart';
 import 'net/api.dart';
 import 'rules.dart';
 import 'store/local_store.dart';
 import 'store/vault.dart';
 import 'sync/inspection_sync.dart';
+import 'sync/parent_sync.dart';
 import 'sync/sync_engine.dart';
 
 enum Phase { loading, signedOut, changePassword, ready }
@@ -48,7 +51,7 @@ const statusText = {
 };
 
 class AppState extends ChangeNotifier {
-  AppState({required this.vault, required this.api, required this.openStore, required this.defaultServers, this.clock, this.onSignedIn, this.onSignedOut, this.photosDir});
+  AppState({required this.vault, required this.api, required this.openStore, required this.defaultServers, this.clock, this.onSignedIn, this.onSignedOut, this.photosDir, PushRegistrar? push}) : push = push ?? NoPush();
 
   final Vault vault;
   final Api api;
@@ -60,12 +63,18 @@ class AppState extends ChangeNotifier {
   final Future<void> Function()? onSignedOut;
   /// Folder for inspection photos waiting to be sent (set by main; tests use a temporary folder).
   final Future<Directory> Function()? photosDir;
+  /// Push notifications for parents (Firebase when the app is built with its settings).
+  final PushRegistrar push;
+  String? _pushToken;
+  final List<StreamSubscription<Object?>> _pushSubs = [];
   final _uuid = const Uuid();
 
   Phase phase = Phase.loading;
   LocalStore? _store;
   SyncEngine? _engine;
   InspectionSync? _inspections;
+  ParentSync? _parents;
+  ParentData? parentData;
   Snapshot? snapshot;
   /// TEACHER, INSPECTOR or LGA_OFFICER. Phones set up before inspections existed are teachers.
   String role = 'TEACHER';
@@ -86,13 +95,15 @@ class AppState extends ChangeNotifier {
   LocalStore get store => _store!;
   String get today => todayNG(clock?.call());
   bool get isInspector => inspectorRoles.contains(role);
-  bool get _hasWorkSet => isInspector ? inspector != null : snapshot != null;
+  bool get isParent => role == 'PARENT';
+  bool get _hasWorkSet => isInspector ? inspector != null : isParent ? parentData != null : snapshot != null;
 
   void _engines() {
     _inspections = InspectionSync(api: api, store: store, userName: userName ?? '', lga: lga);
+    _parents = ParentSync(api: api, store: store, userName: userName ?? '');
   }
 
-  Future<SyncReport> _runSync() => isInspector ? _inspections!.run() : _engine!.run();
+  Future<SyncReport> _runSync() => isInspector ? _inspections!.run() : isParent ? _parents!.run() : _engine!.run();
 
   Future<void> init() async {
     final apiUrl = await vault.read('apiUrl'), syncUrl = await vault.read('syncUrl');
@@ -108,6 +119,7 @@ class AppState extends ChangeNotifier {
       notifyListeners();
       _startTimer();
       _background();
+      unawaited(_registerPush());
       unawaited(sync());
     } else {
       phase = Phase.signedOut;
@@ -120,7 +132,9 @@ class AppState extends ChangeNotifier {
     snapshot = json == null ? null : Snapshot.fromJson(json);
     final insp = await store.meta('inspector');
     inspector = insp == null ? null : InspectorData.fromJson(jsonDecode(insp) as Map<String, dynamic>);
-    userName = snapshot?.userName ?? (inspector?.userName.isNotEmpty == true ? inspector!.userName : null) ?? userName;
+    final par = await store.meta('parent');
+    parentData = par == null ? null : ParentData.fromJson(jsonDecode(par) as Map<String, dynamic>, readHere: await ParentSync.pendingReads(store));
+    userName = snapshot?.userName ?? (inspector?.userName.isNotEmpty == true ? inspector!.userName : null) ?? (parentData?.userName.isNotEmpty == true ? parentData!.userName : null) ?? userName;
     drafts = {for (final d in await store.drafts()) d.key: d};
     waitingKeys = await store.pendingDraftKeys();
     localInspections = await store.inspections();
@@ -160,12 +174,12 @@ class AppState extends ChangeNotifier {
   Future<String?> signIn(String identifier, String password) async {
     try {
       final u = await api.login(identifier, password);
-      if (u.role != 'TEACHER' && !inspectorRoles.contains(u.role)) {
+      if (u.role != 'TEACHER' && u.role != 'PARENT' && !inspectorRoles.contains(u.role)) {
         await api.logout();
-        return 'This app is for teachers, inspectors and LGA education officers. Use the EduOS website for other accounts.';
+        return 'This app is for parents, teachers, inspectors and LGA education officers. Use the EduOS website for other accounts.';
       }
       // Someone else used this phone before: start clean so their data is never mixed with this person's.
-      if (role != u.role || (snapshot == null && inspector == null)) await store.wipe();
+      if (role != u.role || (snapshot == null && inspector == null && parentData == null)) await store.wipe();
       role = u.role;
       lga = u.lga;
       await vault.write('role', role);
@@ -205,12 +219,24 @@ class AppState extends ChangeNotifier {
     phase = Phase.ready;
     _startTimer();
     _background();
+    unawaited(_registerPush());
     notifyListeners();
     return null;
   }
 
   Future<void> signOut() async {
     _timer?.cancel();
+    for (final s in _pushSubs) {
+      unawaited(s.cancel());
+    }
+    _pushSubs.clear();
+    if (_pushToken != null) {
+      // Stop pushes to this phone for the person signing out. Best effort: it may be offline.
+      try {
+        await api.apiDelete('/devices/${Uri.encodeComponent(_pushToken!)}');
+      } catch (_) {}
+      _pushToken = null;
+    }
     if (onSignedOut != null) await onSignedOut!().catchError((Object _) {});
     await api.logout();
     await store.wipe();
@@ -224,6 +250,7 @@ class AppState extends ChangeNotifier {
     }
     snapshot = null;
     inspector = null;
+    parentData = null;
     role = 'TEACHER';
     await reload();
     phase = Phase.signedOut;
@@ -448,5 +475,43 @@ class AppState extends ChangeNotifier {
     } catch (_) {}
     await store.deletePhoto(p.clientId);
     await reload();
+  }
+
+  // ---- Parents ----
+
+  /// Tells the server where to push this parent's notifications, and refreshes when one arrives.
+  Future<void> _registerPush() async {
+    if (!isParent || _pushSubs.isNotEmpty) return;
+    try {
+      final token = await push.token();
+      if (token == null) return;
+      Future<void> send(String t) async {
+        _pushToken = t;
+        await api.apiPost('/devices', {'token': t, 'platform': push.platform});
+      }
+      await send(token);
+      _pushSubs.add(push.tokenChanges.listen((t) => send(t).catchError((Object _) {})));
+      _pushSubs.add(push.arrivals.listen((_) => sync()));
+    } catch (e) {
+      debugPrint('Push not registered: $e');
+    }
+  }
+
+  /// Marks notifications read now on this phone; the server is told on the next sync.
+  Future<void> markRead(Iterable<String> ids) async {
+    final unread = ids.where((id) => parentData?.inbox.any((n) => n.id == id && !n.read) ?? false).toList();
+    if (unread.isEmpty) return;
+    await ParentSync.addPendingReads(store, unread);
+    await reload();
+    unawaited(sync());
+  }
+
+  Child? child(String id) => parentData?.children.where((c) => c.id == id).firstOrNull;
+
+  /// A report card for a term not kept on the phone. Needs a connection.
+  Future<ReportCard> reportCard(String studentId, String termId) async {
+    final cached = child(studentId)?.latestCard;
+    if (cached != null && cached.termId == termId) return cached;
+    return ReportCard.fromJson(await _parents!.reportCard(studentId, termId));
   }
 }

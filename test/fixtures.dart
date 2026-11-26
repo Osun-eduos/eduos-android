@@ -100,3 +100,46 @@ Map<String, Map<String, Object?>> goodAnswers() => {
       'safety': {'fence': 'FULL', 'gate': true, 'firstAid': true, 'fireExtinguisher': true, 'hazards': false},
       'facilities': {'library': true, 'laboratory': false, 'ict': false, 'playground': true},
     };
+
+const childId = '11111111-2222-4333-8444-555555555555';
+const termId = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
+
+/// What the API returns to a parent, by path.
+Map<String, Object> parentApi() => {
+      '/my/children': [
+        {
+          'id': childId, 'learnerId': 'OSN-26-000001', 'fullName': 'Adewale Toluwani Grace', 'firstName': 'Toluwani', 'surname': 'Adewale',
+          'relationship': 'Mother', 'classTeacher': 'Mrs Akinola', 'school': {'name': 'Osogbo Grammar School'}, 'currentClass': {'name': 'JSS 1A'},
+        },
+      ],
+      '/attendance/students/$childId': {
+        'counts': {'PRESENT': 18, 'LATE': 1, 'ABSENT': 1, 'EXCUSED': 0}, 'rate': 95,
+        'records': [
+          {'date': '2026-11-24', 'status': 'PRESENT', 'note': null},
+          {'date': '2026-11-25', 'status': 'ABSENT', 'note': null},
+        ],
+      },
+      '/report-cards/$childId/terms': [
+        {'termId': termId, 'name': 'First term', 'session': '2026/2027', 'className': 'JSS 1A', 'released': true},
+      ],
+      '/report-cards/$childId': {
+        'term': {'id': termId, 'name': 'First term', 'session': '2026/2027'},
+        'class': {'name': 'JSS 1A'},
+        'subjects': [
+          {'name': 'Mathematics', 'total': 78, 'grade': 'A', 'remark': 'Excellent', 'position': 2},
+          {'name': 'English', 'total': 64, 'grade': 'B', 'remark': 'Very good', 'position': 5},
+        ],
+        'summary': {'average': 71, 'position': '3rd', 'outOf': 38},
+        'remarks': {'teacher': 'A hard-working pupil.', 'principal': null},
+        'attendance': {'rate': 95},
+        'nextTermBegins': '2027-01-05',
+      },
+      '/notifications': {
+        'unread': 2,
+        'items': [
+          {'id': 'n-1', 'kind': 'RESULTS', 'title': 'Report card ready', 'body': "Toluwani Adewale's First term report card for 2026/2027 is ready.", 'link': '/report-card/$childId?term=$termId', 'read': false, 'at': '2026-11-25T14:00:00Z'},
+          {'id': 'n-2', 'kind': 'ABSENCE', 'title': 'Toluwani was absent today', 'body': 'Toluwani Adewale was marked absent.', 'link': '/students/$childId', 'read': false, 'at': '2026-11-25T08:30:00Z'},
+          {'id': 'n-3', 'kind': 'NOTICE', 'title': 'Inter-house sports', 'body': 'Osogbo Grammar School: Sports day is Friday.', 'link': '/notifications', 'read': true, 'at': '2026-11-20T08:30:00Z'},
+        ],
+      },
+    };
