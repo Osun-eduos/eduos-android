@@ -133,8 +133,8 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
   String? _problem() {
     final p = _next.text;
     if (_current.text.isEmpty) return 'Enter the temporary password you were given.';
-    if (p.length < 8) return 'Use at least 8 characters.';
-    if (!RegExp(r'[A-Za-z]').hasMatch(p) || !RegExp(r'\d').hasMatch(p)) return 'Use letters and at least one number.';
+    if (p.runes.length < 12) return 'Use at least 12 characters. A short phrase of three or four words is easy to remember.';
+    if (p.runes.length > 128) return 'Use 128 characters or fewer.';
     if (p != _again.text) return 'The new passwords do not match.';
     if (p == _current.text) return 'Choose a password different from the temporary one.';
     return null;
@@ -163,7 +163,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
           const SizedBox(height: 16),
           TextField(controller: _current, obscureText: true, decoration: const InputDecoration(labelText: 'Temporary password')),
           const SizedBox(height: 12),
-          TextField(controller: _next, obscureText: true, decoration: const InputDecoration(labelText: 'New password', helperText: 'At least 8 characters, with letters and a number')),
+          TextField(controller: _next, obscureText: true, decoration: const InputDecoration(labelText: 'New password', helperText: 'At least 12 characters, for example a phrase of three or four words', helperMaxLines: 2)),
           const SizedBox(height: 12),
           TextField(controller: _again, obscureText: true, decoration: const InputDecoration(labelText: 'New password again')),
           if (_error != null) Padding(padding: const EdgeInsets.only(top: 12), child: Text(_error!, style: const TextStyle(color: bad))),
