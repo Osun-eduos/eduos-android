@@ -33,6 +33,12 @@ class SignedIn {
   final String? lga;
 }
 
+/// The password was right and the account uses two-step sign-in: answer [mfaToken] with a code.
+class CodeNeeded implements Exception {
+  CodeNeeded(this.mfaToken);
+  final String mfaToken;
+}
+
 class Api {
   Api({required this.client, required this.vault, required this.servers});
   final http.Client client;
@@ -95,9 +101,19 @@ class Api {
     return SignedIn(fullName: u['fullName'], role: u['role'], mustChangePassword: u['mustChangePassword'] == true, lga: u['lga'] as String?);
   }
 
+  /// Signs in with a password. Throws [CodeNeeded] when the account also needs an authenticator code.
   Future<SignedIn> login(String identifier, String password) async {
     final r = await _send('POST', Uri.parse('${servers.api}/auth/login'),
         headers: {'X-Client': 'mobile'}, body: {'identifier': identifier.trim(), 'password': password});
+    if (r['mfaRequired'] == true) throw CodeNeeded(r['mfaToken'] as String);
+    await _keep(r);
+    return _user(r);
+  }
+
+  /// Second step of two-step sign-in: a 6-digit authenticator code or a recovery code.
+  Future<SignedIn> loginWithCode(String mfaToken, String code) async {
+    final r = await _send('POST', Uri.parse('${servers.api}/auth/login/code'),
+        headers: {'X-Client': 'mobile'}, body: {'mfaToken': mfaToken, 'code': code.trim()});
     await _keep(r);
     return _user(r);
   }
