@@ -170,10 +170,47 @@ class AppState extends ChangeNotifier {
     await vault.write('syncUrl', api.servers.sync);
   }
 
-  /// Signs in. Returns an error message, or null when it worked.
+  /// Set after a correct password when the account uses two-step sign-in; the sign-in screen then asks for a code.
+  String? codeChallenge;
+
+  /// Signs in. Returns an error message, or null when it worked (or when a code is now needed: see [codeChallenge]).
   Future<String?> signIn(String identifier, String password) async {
     try {
-      final u = await api.login(identifier, password);
+      return await _afterSignIn(await api.login(identifier, password));
+    } on CodeNeeded catch (c) {
+      codeChallenge = c.mfaToken;
+      notifyListeners();
+      return null;
+    } on ApiException catch (e) {
+      return e.message;
+    }
+  }
+
+  /// Second step of two-step sign-in. Returns an error message, or null when it worked.
+  Future<String?> signInWithCode(String code) async {
+    final token = codeChallenge;
+    if (token == null) return 'Enter your email or phone number and your password again.';
+    try {
+      final u = await api.loginWithCode(token, code);
+      codeChallenge = null;
+      return await _afterSignIn(u);
+    } on ApiException catch (e) {
+      // The step between password and code has expired or run out of tries: start again from the password.
+      if (e.status == 401 && e.message.toLowerCase().contains('expired')) {
+        codeChallenge = null;
+        notifyListeners();
+      }
+      return e.message;
+    }
+  }
+
+  void cancelCode() {
+    codeChallenge = null;
+    notifyListeners();
+  }
+
+  Future<String?> _afterSignIn(SignedIn u) async {
+    try {
       if (u.role != 'TEACHER' && u.role != 'PARENT' && !inspectorRoles.contains(u.role)) {
         await api.logout();
         return 'This app is for parents, teachers, inspectors and LGA education officers. Use the EduOS website for other accounts.';
